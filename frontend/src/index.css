@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #001F3D;
+  --color-primary-light: #0F263D;
+  --color-accent-teal: #01C6AC;
+  --color-accent-blue: #2EADFA;
+  --color-text-muted: #99A1AF;
+  --color-text-light: #D1D5DC;
+  --color-card-bg: rgba(255, 255, 255, 0.05);
+  --color-card-border: rgba(255, 255, 255, 0.1);
+  --font-inter: 'Inter', system-ui, sans-serif;
+}
+
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: var(--font-inter);
+    background-color: var(--color-primary);
+    color: white;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+.gradient-text {
+  background: linear-gradient(90deg, #01C6AC 0%, #07C3B8 7.14%, #0FC0C4 14.29%, #16BDCF 21.43%, #1CB9DA 28.57%, #22B5E5 35.71%, #28B1EF 42.86%, #2EADFA 50%, #28B1EF 57.14%, #22B5E5 64.29%, #1CB9DA 71.43%, #16BDCF 78.57%, #0FC0C4 85.71%, #07C3B8 92.86%, #01C6AC 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-btn {
+  background: linear-gradient(90deg, #01C6AC 0%, #07C3B8 14.29%, #0FC0C4 28.57%, #16BDCF 42.86%, #1CB9DA 57.14%, #22B5E5 71.43%, #28B1EF 85.71%, #2EADFA 100%);
+}
+
+.gradient-icon-bg {
+  background: linear-gradient(135deg, #01C6AC 0%, #0FC0C4 28.57%, #1CB9DA 57.14%, #2EADFA 100%);
+}
+
+.stat-text {
+  background: linear-gradient(135deg, #FFFFFF 0%, #D1D5DC 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.glow-teal {
+  background: rgba(1, 198, 172, 0.2);
+  filter: blur(64px);
+}
+
+.glow-blue {
+  background: rgba(46, 173, 250, 0.1);
+  filter: blur(64px);
+}

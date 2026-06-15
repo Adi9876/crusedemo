@@ -1,0 +1,243 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  SUPPORT
+}
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+}
+
+enum KycStatus {
+  NOT_STARTED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum DepositStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+}
+
+enum WithdrawalStatus {
+  PENDING_REVIEW
+  APPROVED
+  PROCESSING
+  COMPLETED
+  REJECTED
+}
+
+model User {
+  id              String        @id @default(uuid()) @db.Uuid
+  email           String        @unique
+  passwordHash    String
+  firstName       String
+  lastName        String
+  phone           String?
+  dateOfBirth     DateTime?
+  role            UserRole      @default(USER)
+  status          UserStatus    @default(PENDING_VERIFICATION)
+  emailVerifiedAt          DateTime?
+  emailVerificationToken   String?
+  emailVerificationExpiry  DateTime?
+  termsAcceptedAt          DateTime?
+  bybitSubMemberId         String?       @unique
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  profile         UserProfile?
+  sessions        AuthSession[]
+  kycDocuments    KycDocument[]
+  wallets         Wallet[]
+  deposits        Deposit[]
+  withdrawals     Withdrawal[]
+  orders          Order[]
+  tradesAsBuyer   Trade[]       @relation("BuyerTrades")
+  tradesAsSeller  Trade[]       @relation("SellerTrades")
+
+  @@index([createdAt])
+}
+
+model UserProfile {
+  userId       String     @id @db.Uuid
+  addressLine1 String?
+  city         String?
+  postalCode   String?
+  country      String?
+  kycStatus    KycStatus  @default(NOT_STARTED)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model KycDocument {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @db.Uuid
+  type            String   // 'PASSPORT', 'ID_CARD', 'DRIVER_LICENSE', 'SELFIE'
+  fileUrl         String
+  status          String   @default("PENDING") // 'PENDING', 'APPROVED', 'REJECTED'
+  rejectionReason String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model AuthSession {
+  id               String    @id @default(cuid())
+  userId           String    @db.Uuid
+  refreshTokenHash String    @unique
+  deviceName       String?
+  userAgent        String?
+  ipAddress        String?
+  isRevoked        Boolean   @default(false)
+  revokedAt        DateTime?
+  lastUsedAt       DateTime?
+  expiresAt        DateTime
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRevoked])
+  @@index([expiresAt])
+}
+
+model Wallet {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  currency  String   // 'BTC', 'ETH', 'USDT', etc.
+  balance   Decimal  @default(0) @db.Decimal(28, 18)
+  locked    Decimal  @default(0) @db.Decimal(28, 18)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, currency])
+  @@index([userId])
+}
+
+model Deposit {
+  id             String        @id @default(uuid()) @db.Uuid
+  userId         String        @db.Uuid
+  currency       String
+  amount         Decimal       @db.Decimal(28, 18)
+  network        String
+  txHash         String?
+  depositAddress String?
+  status         DepositStatus @default(PENDING)
+  confirmedAt    DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+model Withdrawal {
+  id          String           @id @default(uuid()) @db.Uuid
+  userId      String           @db.Uuid
+  currency    String
+  amount      Decimal          @db.Decimal(28, 18)
+  fee         Decimal          @db.Decimal(28, 18)
+  network     String
+  toAddress   String
+  txHash      String?
+  status      WithdrawalStatus @default(PENDING_REVIEW)
+  reviewedBy  String?          @db.Uuid
+  reviewedAt  DateTime?
+  completedAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+enum OrderType {
+  LIMIT
+  MARKET
+  STOP
+}
+
+enum OrderSide {
+  BUY
+  SELL
+}
+
+enum OrderStatus {
+  PENDING
+  OPEN
+  PENDING_EXTERNAL
+  PARTIALLY_FILLED
+  FILLED
+  CANCELLED
+  REJECTED
+}
+
+model Order {
+  id              String      @id @default(uuid()) @db.Uuid
+  userId          String      @db.Uuid
+  symbol          String      // e.g. "BTC"
+  type            OrderType
+  side            OrderSide
+  status          OrderStatus @default(OPEN)
+  price           Decimal?    @db.Decimal(28, 18)
+  stopPrice       Decimal?    @db.Decimal(28, 18)
+  lockedUsdtPerUnit Decimal?  @db.Decimal(28, 18)
+  amount          Decimal     @db.Decimal(28, 18)
+  filledAmount    Decimal     @default(0) @db.Decimal(28, 18)
+  remainingAmount Decimal     @db.Decimal(28, 18)
+  externalOrderId String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tradesAsMaker   Trade[]     @relation("MakerOrder")
+  tradesAsTaker   Trade[]     @relation("TakerOrder")
+
+  @@index([userId])
+  @@index([status])
+  @@index([symbol, status])
+}
+
+model Trade {
+  id           String   @id @default(uuid()) @db.Uuid
+  symbol       String   // e.g. "BTC"
+  price        Decimal  @db.Decimal(28, 18)
+  amount       Decimal  @db.Decimal(28, 18)
+  makerOrderId String   @db.Uuid
+  takerOrderId String   @db.Uuid
+  buyerId      String   @db.Uuid
+  sellerId     String   @db.Uuid
+  createdAt    DateTime @default(now())
+
+  makerOrder   Order    @relation("MakerOrder", fields: [makerOrderId], references: [id], onDelete: Cascade)
+  takerOrder   Order    @relation("TakerOrder", fields: [takerOrderId], references: [id], onDelete: Cascade)
+  buyer        User     @relation("BuyerTrades", fields: [buyerId], references: [id], onDelete: Cascade)
+  seller       User     @relation("SellerTrades", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([symbol])
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([createdAt])
+}
+
+model SystemSetting {
+  key   String @id
+  value String
+}
+
