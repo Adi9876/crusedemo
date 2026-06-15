@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { Star, Settings, Sparkles, X, Info } from 'lucide-react';
 import PriceChart from '../components/PriceChart';
 import PairSelector from '../components/PairSelector';
@@ -73,6 +74,7 @@ type TradesTab = 'Market Trades' | 'My Trades';
 export default function ProTradingPage() {
   const [selectedSymbol, setSelectedSymbol] = useState('BTC');
   const [pairSearch, setPairSearch] = useState('');
+  const lastPriceInitRef = useRef('');
 
   const { data: markets, loading: marketsLoading } = useMarkets();
   const tradingPairs = getTradeableMarkets(markets);
@@ -230,10 +232,12 @@ Include a short summary, key support/resistance levels, RSI/MACD interpretation,
 
   // Sync price input with ticker
   useEffect(() => {
-    if (currentPrice && orderType === 'Limit') {
+    const initKey = `${selectedSymbol}-${orderType}`;
+    if (currentPrice && orderType === 'Limit' && lastPriceInitRef.current !== initKey) {
       setPriceInput(formatOrderPrice(currentPrice));
+      lastPriceInitRef.current = initKey;
     }
-  }, [currentPrice, orderType]);
+  }, [currentPrice, orderType, selectedSymbol]);
 
   // Calculate Available Balance
   const activeBalanceAsset = side === 'Buy' ? 'USDT' : selectedSymbol;
@@ -472,9 +476,9 @@ Include a short summary, key support/resistance levels, RSI/MACD interpretation,
                 ${totalBalanceUSDT.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
-            <div className="w-9 h-9 rounded-full gradient-btn flex items-center justify-center">
+            <Link to="/dashboard" className="w-9 h-9 rounded-full gradient-btn flex items-center justify-center cursor-pointer hover:opacity-90 transition-opacity" title="Go to Dashboard">
               <span className="text-white font-bold text-sm">U</span>
-            </div>
+            </Link>
           </div>
         </div>
       </div>
