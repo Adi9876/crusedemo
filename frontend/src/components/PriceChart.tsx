@@ -32,9 +32,8 @@ function fmtVol(v: number) {
   return v.toFixed(0);
 }
 
-function fmtTime(ts: number, interval?: string) {
+function fmtTime(ts: number, isShort?: boolean) {
   const d = new Date(ts);
-  const isShort = interval === '1' || interval === '15';
   if (isShort) {
     return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
   }
@@ -137,13 +136,19 @@ export default function PriceChart({
     const baseY = CHART_PAD.top + priceH;
     const areaPath = `${closePath} L ${lastX} ${baseY} L ${firstX} ${baseY} Z`;
 
+    const isShort = (() => {
+      if (displayKlines.length < 2) return false;
+      const diffMs = displayKlines[1].time - displayKlines[0].time;
+      return diffMs < 24 * 60 * 60 * 1000;
+    })();
+
     // X-axis labels (show ~6 evenly spaced)
     const xLabelCount = Math.min(6, displayKlines.length);
     const xLabels = Array.from({ length: xLabelCount }, (_, i) => {
       const idx = Math.round((i / (xLabelCount - 1)) * (displayKlines.length - 1));
       const k = displayKlines[idx];
       const x = CHART_PAD.left + idx * step + step / 2;
-      return { x, label: fmtTime(k.time) };
+      return { x, label: fmtTime(k.time, isShort) };
     });
 
     const livePriceY = livePrice ? yP(livePrice) : null;

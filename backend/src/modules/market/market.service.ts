@@ -382,6 +382,7 @@ export class MarketService {
 
     const bybitIntervalMap: Record<string, string> = {
       '1': '1',
+      '5': '5',
       '15': '15',
       '1H': '60',
       '4H': '240',
@@ -391,7 +392,7 @@ export class MarketService {
     const bybitInterval = bybitIntervalMap[interval] ?? bybitIntervalMap[interval.toUpperCase()] ?? 'D';
 
     const cacheKey = `klines:${symbol}:${interval}`;
-    const isLowInterval = interval === '1' || interval === '15';
+    const isLowInterval = interval === '1' || interval === '5' || interval === '15';
     const ttl = isLowInterval ? 3000 : CACHE_TTL_MS;
     
     const cached = getCached<KlineEntry[]>(cacheKey, ttl);
