@@ -53,7 +53,7 @@ export function buildApp() {
     }
   });
 
-  app.setErrorHandler((error, _request, reply) => {
+  app.setErrorHandler((error: any, _request, reply) => {
     if (error instanceof ZodError) {
       return reply.code(400).send({
         success: false,

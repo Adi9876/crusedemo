@@ -44,7 +44,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   const token = localStorage.getItem('accessToken');
 
   const headers = {
-    'Content-Type': 'application/json',
+    ...(options.body ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   };
@@ -67,7 +67,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
         const retryResponse = await fetch(`${API_BASE_URL}${endpoint}`, {
           ...options,
           headers: {
-            'Content-Type': 'application/json',
+            ...(options.body ? { 'Content-Type': 'application/json' } : {}),
             Authorization: `Bearer ${newToken}`,
             ...options.headers,
           },
@@ -92,7 +92,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
         const retryResponse = await fetch(`${API_BASE_URL}${endpoint}`, {
           ...options,
           headers: {
-            'Content-Type': 'application/json',
+            ...(options.body ? { 'Content-Type': 'application/json' } : {}),
             Authorization: `Bearer ${newToken}`,
             ...options.headers,
           },
