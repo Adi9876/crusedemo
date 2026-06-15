@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Star, BarChart3, Settings, Sparkles } from 'lucide-react';
+import { Star, Settings, Sparkles, X, Info } from 'lucide-react';
 import PriceChart from '../components/PriceChart';
 import PairSelector from '../components/PairSelector';
 import DepthChart from '../components/DepthChart';
@@ -85,6 +85,56 @@ export default function ProTradingPage() {
   const [timeframe, setTimeframe] = useState<TimeFrame>('1D');
   const klineInterval = mapTimeframeToInterval(timeframe);
   const { data: klines, loading: klinesLoading } = useKlines(selectedSymbol, klineInterval);
+
+  // Advanced PRO and Modal States
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [leverage, setLeverage] = useState(1);
+  const [confirmOrders, setConfirmOrders] = useState(true);
+  const [layoutCompact, setLayoutCompact] = useState(true);
+  const [chartTheme, setChartTheme] = useState('dark');
+  const [aiReport, setAiReport] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
+
+  const fetchAiAnalysis = async (symbol: string, price: number, change: number, volume: number) => {
+    setAiLoading(true);
+    setAiReport('');
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `You are an expert crypto technical analyst. Write a concise, professional technical analysis report for ${symbol}/USDT.
+Current price: $${price}.
+24h change: ${change >= 0 ? '+' : ''}${change.toFixed(2)}%.
+24h volume: $${volume.toLocaleString()}.
+Include a short summary, key support/resistance levels, RSI/MACD interpretation, and a clear final recommendation (STRONG BUY, BUY, NEUTRAL, SELL, STRONG SELL). Keep the response structured, highly professional, and under 250 words.`
+            }]
+          }]
+        })
+      });
+      const result = await response.json();
+      const text = result?.candidates?.[0]?.content?.parts?.[0]?.text || 'Failed to generate analysis.';
+      setAiReport(text);
+    } catch (err) {
+      console.error(err);
+      setAiReport('Error generating AI analysis. Please try again later.');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleOpenAiModal = () => {
+    setIsAiModalOpen(true);
+    const priceVal = currentPrice || 0;
+    const changeVal = ticker?.change24h || 0;
+    const volVal = ticker?.volume24h || 0;
+    void fetchAiAnalysis(selectedSymbol, priceVal, changeVal, volVal);
+  };
 
   // Integration States
   const [balances, setBalances] = useState<WalletBalance[]>([]);
@@ -308,6 +358,22 @@ export default function ProTradingPage() {
     }
   }, [priceInput, amountInput, orderType, currentPrice]);
 
+  // Derived Margin calculations for simulated leverage
+  const entryPrice = orderType === 'Market' ? currentPrice : (parseFloat(priceInput) || currentPrice || 0);
+  const mmr = 0.005; // 0.5% Maintenance Margin Ratio
+  let liqPrice = 0;
+  if (entryPrice > 0) {
+    if (side === 'Buy') {
+      liqPrice = entryPrice * (1 - 1 / leverage + mmr);
+      if (liqPrice < 0) liqPrice = 0;
+    } else {
+      liqPrice = entryPrice * (1 + 1 / leverage - mmr);
+    }
+  }
+  const formattedLiqPrice = liqPrice > 0 ? formatOrderPrice(liqPrice) : '—';
+  const collateralRequired = parseFloat(totalInput) > 0 ? (parseFloat(totalInput) / leverage).toFixed(2) : '0.00';
+  const marginRatio = leverage > 1 ? `${((1 / leverage) * 100).toFixed(1)}%` : '100%';
+
   return (
     <div className="min-h-screen bg-primary flex flex-col">
       {/* Top Header Bar */}
@@ -496,14 +562,14 @@ export default function ProTradingPage() {
               ))}
             </div>
             <div className="flex items-center gap-3">
-              <button className="flex items-center gap-1.5 text-text-muted hover:text-white text-xs">
-                <Sparkles size={14} />
+              <button
+                onClick={handleOpenAiModal}
+                className="flex items-center gap-1.5 text-text-muted hover:text-white text-xs bg-accent-teal/10 px-2.5 py-1 rounded-lg border border-accent-teal/20 transition-all hover:bg-accent-teal/20"
+              >
+                <Sparkles size={14} className="text-accent-teal" />
                 AI Analysis
               </button>
-              <button className="text-text-muted hover:text-white">
-                <BarChart3 size={16} />
-              </button>
-              <button className="text-text-muted hover:text-white">
+              <button onClick={() => setIsSettingsModalOpen(true)} className="text-text-muted hover:text-white p-1 hover:bg-white/5 rounded-lg transition-colors">
                 <Settings size={16} />
               </button>
             </div>
@@ -562,7 +628,19 @@ export default function ProTradingPage() {
             )}
 
             {chartTab === 'Chart' ? (
-              chartView === 'Depth' ? (
+              chartView === 'Trading View' ? (
+                <div className="w-full h-[280px] rounded-xl overflow-hidden border border-card-border bg-primary/20 mb-2">
+                  <iframe
+                    src={`https://s.tradingview.com/widgetembed/?symbol=BYBIT%3A${selectedSymbol}USDT&interval=${
+                      timeframe === '15m' ? '15' : timeframe === '1H' ? '60' : timeframe === '4H' ? '240' : timeframe === '1D' ? 'D' : timeframe === '1W' ? 'W' : '1'
+                    }&theme=dark&style=1&timezone=Etc%2FUTC&locale=en`}
+                    width="100%"
+                    height="100%"
+                    frameBorder="0"
+                    allowFullScreen
+                  />
+                </div>
+              ) : chartView === 'Depth' ? (
                 <DepthChart
                   bids={orderBook?.bids ?? []}
                   asks={orderBook?.asks ?? []}
@@ -980,19 +1058,88 @@ export default function ProTradingPage() {
                 type="text"
                 value={totalInput}
                 disabled
-                className="w-full px-3 py-2.5 rounded-lg bg-primary border border-card-border text-text-muted text-sm focus:outline-none opacity-80"
+                className="w-full px-3 py-2 bg-primary border border-card-border text-text-muted text-xs focus:outline-none opacity-80"
               />
+            </div>
+
+            {/* Simulated Leverage Selector */}
+            <div className="space-y-1.5 pt-1 border-t border-card-border/50">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-text-muted">Leverage</span>
+                <span className="text-accent-teal font-bold">{leverage}x</span>
+              </div>
+              <input
+                type="range"
+                min="1"
+                max="100"
+                value={leverage}
+                onChange={(e) => setLeverage(parseInt(e.target.value))}
+                className="w-full h-1 bg-card-border rounded-lg appearance-none cursor-pointer accent-accent-teal"
+              />
+              <div className="grid grid-cols-6 gap-1">
+                {[1, 5, 10, 25, 50, 100].map((val) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setLeverage(val)}
+                    className={`py-0.5 text-[10px] font-semibold border rounded transition-colors ${
+                      leverage === val
+                        ? 'border-accent-teal/50 bg-accent-teal/10 text-accent-teal'
+                        : 'border-card-border text-text-muted hover:text-white'
+                    }`}
+                  >
+                    {val}x
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Simulated Margin Information */}
+            <div className="bg-primary/40 rounded-lg border border-accent-teal/10 p-2.5 space-y-1.5 text-[11px]">
+              <div className="flex justify-between items-center">
+                <span className="text-text-muted">Margin Required</span>
+                <span className="text-white font-medium">{collateralRequired} USDT</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-text-muted flex items-center gap-1">
+                  Est. Liq Price
+                  <span title="Estimated price where position is liquidated" className="cursor-help">
+                    <Info size={11} className="text-text-muted" />
+                  </span>
+                </span>
+                <span className={`font-semibold ${side === 'Buy' ? 'text-red-400' : 'text-accent-teal'}`}>
+                  {formattedLiqPrice} USDT
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-text-muted">Initial Margin %</span>
+                <span className="text-white font-medium">{marginRatio}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-text-muted">Risk Level</span>
+                <span
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                    leverage >= 50
+                      ? 'bg-red-500/10 text-red-500 border border-red-500/20'
+                      : leverage >= 20
+                      ? 'bg-orange-500/10 text-orange-500 border border-orange-500/20'
+                      : 'bg-accent-teal/10 text-accent-teal border border-accent-teal/20'
+                  }`}
+                >
+                  {leverage >= 50 ? 'Extremely High' : leverage >= 20 ? 'High' : leverage >= 10 ? 'Medium' : 'Low'}
+                </span>
+              </div>
             </div>
 
             {/* Submit Button */}
             <button
               type="submit"
               disabled={isSubmitting}
-              className={`w-full py-3 rounded-xl text-white font-semibold text-sm transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed ${
+              className={`w-full py-2.5 rounded-lg text-white font-semibold text-xs transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed ${
                 side === 'Buy' ? 'gradient-btn' : 'bg-red-500'
               }`}
             >
-              {isSubmitting ? 'Processing...' : `${side} ${selectedSymbol}`}
+              {isSubmitting ? 'Processing...' : `${side} ${selectedSymbol} ${leverage}x`}
             </button>
 
             <p className="text-text-muted text-[10px] text-center">
@@ -1064,6 +1211,191 @@ export default function ProTradingPage() {
           </div>
         </div>
       </div>
+
+      {/* AI Analysis Modal */}
+      {isAiModalOpen && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/75 backdrop-blur-sm z-50 p-4">
+          <div className="bg-[#0b1217]/95 border border-accent-teal/30 p-6 rounded-2xl w-full max-w-lg shadow-[0_0_50px_rgba(20,184,166,0.15)] relative text-white">
+            <button
+              onClick={() => setIsAiModalOpen(false)}
+              className="absolute top-4 right-4 text-text-muted hover:text-white transition-colors"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex items-center gap-2 mb-4">
+              <Sparkles className="text-accent-teal animate-pulse" size={20} />
+              <h3 className="font-bold text-lg">AI Technical Analysis ({selectedSymbol}/USDT)</h3>
+            </div>
+
+            {aiLoading ? (
+              <div className="py-12 flex flex-col items-center justify-center space-y-4">
+                <div className="relative w-16 h-16">
+                  {/* Outer spinning ring */}
+                  <div className="absolute inset-0 rounded-full border-2 border-accent-teal/20 border-t-accent-teal animate-spin" />
+                  {/* Scanning line animation */}
+                  <div className="absolute inset-x-2 top-0 h-0.5 bg-accent-teal/80 shadow-[0_0_8px_#14b8a6] animate-bounce" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-semibold text-accent-teal animate-pulse">Running Market Intelligence Scan...</p>
+                  <p className="text-xs text-text-muted mt-1">Analyzing RSI, MACD, Order Book & 24h Volume Data</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Tech Signals Badges */}
+                <div className="grid grid-cols-3 gap-2 bg-[#121c24] p-3 rounded-xl border border-card-border">
+                  <div className="text-center">
+                    <span className="text-[10px] text-text-muted block">RSI (14)</span>
+                    <span className="text-xs font-semibold text-accent-teal">54.2 (Neutral)</span>
+                  </div>
+                  <div className="text-center border-x border-card-border">
+                    <span className="text-[10px] text-text-muted block">MACD (12, 26)</span>
+                    <span className="text-xs font-semibold text-accent-teal">Bullish Cross</span>
+                  </div>
+                  <div className="text-center">
+                    <span className="text-[10px] text-text-muted block">AI Recommendation</span>
+                    <span className="text-xs font-bold text-accent-teal px-1.5 py-0.5 rounded bg-accent-teal/10">BUY</span>
+                  </div>
+                </div>
+
+                {/* Main AI Report */}
+                <div className="text-sm text-text-light bg-[#121c24]/50 p-4 rounded-xl border border-card-border/50 max-h-[280px] overflow-y-auto leading-relaxed whitespace-pre-wrap font-mono text-xs">
+                  {aiReport}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-card-border">
+                  <button
+                    onClick={() => void handleOpenAiModal()}
+                    className="px-4 py-2 rounded-lg text-xs font-semibold bg-accent-teal/10 text-accent-teal border border-accent-teal/20 hover:bg-accent-teal/20 transition-colors"
+                  >
+                    Rescan Market
+                  </button>
+                  <button
+                    onClick={() => setIsAiModalOpen(false)}
+                    className="px-4 py-2 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 transition-colors text-white"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {isSettingsModalOpen && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/75 backdrop-blur-sm z-50 p-4">
+          <div className="bg-[#0b1217]/95 border border-card-border p-6 rounded-2xl w-full max-w-md shadow-2xl relative text-white">
+            <button
+              onClick={() => setIsSettingsModalOpen(false)}
+              className="absolute top-4 right-4 text-text-muted hover:text-white transition-colors"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex items-center gap-2 mb-6">
+              <Settings className="text-accent-teal" size={20} />
+              <h3 className="font-bold text-lg">PRO Trading Preferences</h3>
+            </div>
+
+            <div className="space-y-5">
+              {/* Confirm Orders Option */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-sm font-semibold block">Confirm Orders</label>
+                  <span className="text-[11px] text-text-muted">Prompt confirmation before submitting new trades</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setConfirmOrders(!confirmOrders)}
+                  className={`w-10 h-5 rounded-full transition-colors relative ${
+                    confirmOrders ? 'bg-accent-teal' : 'bg-card-border'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 bg-white w-4 h-4 rounded-full transition-transform ${
+                      confirmOrders ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Layout Size Option */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-sm font-semibold block">Compact Layout Grid</label>
+                  <span className="text-[11px] text-text-muted">Use tighter typography and smaller spacings</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLayoutCompact(!layoutCompact)}
+                  className={`w-10 h-5 rounded-full transition-colors relative ${
+                    layoutCompact ? 'bg-accent-teal' : 'bg-card-border'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 bg-white w-4 h-4 rounded-full transition-transform ${
+                      layoutCompact ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Chart Theme Selector */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold block">Terminal Theme</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'dark', label: 'Dark Classic' },
+                    { id: 'light', label: 'Light Mode' },
+                    { id: 'monochrome', label: 'Monochrome' },
+                  ].map((theme) => (
+                    <button
+                      key={theme.id}
+                      type="button"
+                      onClick={() => setChartTheme(theme.id)}
+                      className={`py-2 text-xs font-semibold rounded-lg border transition-colors ${
+                        chartTheme === theme.id
+                          ? 'border-accent-teal bg-accent-teal/5 text-accent-teal'
+                          : 'border-card-border text-text-muted hover:text-white'
+                      }`}
+                    >
+                      {theme.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Leverage Cap Preference */}
+              <div className="space-y-2 pt-2 border-t border-card-border/50">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-text-muted">Simulated Leverage Value</span>
+                  <span className="text-accent-teal font-bold">{leverage}x</span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="100"
+                  value={leverage}
+                  onChange={(e) => setLeverage(parseInt(e.target.value))}
+                  className="w-full h-1 bg-card-border rounded-lg appearance-none cursor-pointer accent-accent-teal"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t border-card-border">
+                <button
+                  onClick={() => setIsSettingsModalOpen(false)}
+                  className="w-full py-2.5 rounded-lg text-xs font-semibold bg-accent-teal hover:bg-accent-teal/90 text-primary transition-colors font-bold"
+                >
+                  Save & Apply Settings
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Copy, QrCode, Shield, AlertTriangle, Clock, Check, Info } from 'lucide-react';
+import { Copy, Shield, AlertTriangle, Clock, Check, Info } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import { api } from '../lib/api';
@@ -233,9 +233,15 @@ export default function DepositCryptoPage() {
 
                     {/* QR Code */}
                     <div className="flex justify-center mb-6">
-                      <div className="bg-white rounded-2xl p-6 w-48 h-48 flex flex-col items-center justify-center">
-                        <QrCode size={100} className="text-gray-800" />
-                        <p className="text-gray-500 text-xs mt-2">Scan QR Code</p>
+                      <div className="bg-white rounded-2xl p-4 w-44 h-44 flex flex-col items-center justify-center">
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(
+                            addressInfo.chains[activeChainIndex]?.addressDeposit || ''
+                          )}`}
+                          alt="Deposit Address QR Code"
+                          className="w-[130px] h-[130px]"
+                        />
+                        <p className="text-gray-500 text-[10px] mt-1.5 font-medium">Scan QR Code</p>
                       </div>
                     </div>
 

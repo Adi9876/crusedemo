@@ -82,7 +82,7 @@ export default function DepthChart({
       .join(' ');
     const bidFirstX = xScale(bidPoints[bidPoints.length - 1].price);
     const bidLastX = xScale(bidPoints[0].price);
-    const bidArea = `${bidPath} L ${bidFirstX} ${PAD.top + innerH} L ${bidLastX} ${PAD.top + innerH} Z`;
+    const bidArea = `${bidPath} L ${bidLastX} ${PAD.top + innerH} L ${bidFirstX} ${PAD.top + innerH} Z`;
 
     // Build SVG path for asks
     const askPath = askPoints
