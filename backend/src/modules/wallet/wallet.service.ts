@@ -1,10 +1,9 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { prisma } from '../../lib/prisma.js';
 import { AppError } from '../../lib/errors.js';
 import type { DepositInput, WithdrawalInput } from './wallet.schemas.js';
 import { isAutoApprovalEnabled } from '../admin/admin.settings.js';
 import { ExchangeService } from '../trading/exchange.service.js';
-
-const prisma = new PrismaClient();
 
 // Network fees per currency (simplified flat fees)
 const NETWORK_FEES: Record<string, string> = {

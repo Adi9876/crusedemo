@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../lib/prisma.js';
 import type { UpdateProfileInput, KycUploadInput } from './user.schemas.js';
-
-const prisma = new PrismaClient();
 
 export class UserService {
   async getProfile(userId: string) {

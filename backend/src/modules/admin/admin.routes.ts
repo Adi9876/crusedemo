@@ -2,11 +2,10 @@ import { z } from 'zod';
 import type { FastifyPluginAsync } from 'fastify';
 import { WalletService } from '../wallet/wallet.service.js';
 import { extractBearerToken, verifyAccessToken } from '../../lib/tokens.js';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../../lib/prisma.js';
 import { isAutoApprovalEnabled, setAutoApprovalEnabled } from './admin.settings.js';
 import { AdminKycService } from './admin.kyc.service.js';
 
-const prisma = new PrismaClient();
 const walletService = new WalletService();
 const adminKycService = new AdminKycService();
 
