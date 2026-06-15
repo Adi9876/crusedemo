@@ -6,8 +6,14 @@ const marketService = new MarketService();
 
 export const marketRoutes: FastifyPluginAsync = async (app) => {
   app.get('/', async (_request, reply) => {
-    const data = await marketService.getAllTickers();
-    return reply.send({ success: true, data });
+    try {
+      const data = await marketService.getAllTickers();
+      return reply.send({ success: true, data });
+    } catch (err) {
+      // Return empty list rather than 500 so the frontend doesn't break
+      app.log.error(err, 'getAllTickers failed');
+      return reply.send({ success: true, data: [] });
+    }
   });
 
   app.get('/:symbol/orderbook', async (request, reply) => {

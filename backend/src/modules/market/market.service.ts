@@ -95,6 +95,11 @@ export class MarketService {
       : 'https://api.bybit.com';
   }
 
+  /** Public market data always uses mainnet — no auth, no testnet instability */
+  private getMarketBaseUrl(): string {
+    return 'https://api.bybit.com';
+  }
+
   /**
    * Update a specific ticker in the in-memory cache directly from WebSocket updates.
    */
@@ -194,7 +199,7 @@ export class MarketService {
     const cached = getCached<MarketTicker[]>(cacheKey);
     if (cached) return cached;
 
-    const baseUrl = this.getBaseUrl();
+    const baseUrl = this.getMarketBaseUrl();
     const url = `${baseUrl}/v5/market/tickers?category=spot`;
 
     const response = await fetch(url);
@@ -348,7 +353,7 @@ export class MarketService {
    * Get recent public trades from Bybit.
    */
   async getRecentTrades(symbol: string): Promise<RecentTrade[]> {
-    const baseUrl = this.getBaseUrl();
+    const baseUrl = this.getMarketBaseUrl();
     const symUpper = symbol.toUpperCase();
     const coinMeta = Object.values(SUPPORTED_COINS).find((c) => c.symbol === symUpper);
     const bybitSymbol = coinMeta?.bybitSymbol ?? `${symUpper}USDT`;
@@ -403,7 +408,7 @@ export class MarketService {
     const cached = getCached<KlineEntry[]>(cacheKey, ttl);
     if (cached) return cached;
 
-    const baseUrl = this.getBaseUrl();
+    const baseUrl = this.getMarketBaseUrl();
     const url = `${baseUrl}/v5/market/kline?category=spot&symbol=${bybitSymbol}&interval=${bybitInterval}&limit=200`;
 
     const response = await fetch(url);
