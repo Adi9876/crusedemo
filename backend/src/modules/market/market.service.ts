@@ -199,89 +199,78 @@ export class MarketService {
     const cached = getCached<MarketTicker[]>(cacheKey);
     if (cached) return cached;
 
-    const baseUrl = this.getMarketBaseUrl();
-    const url = `${baseUrl}/v5/market/tickers?category=spot`;
+    try {
+      const baseUrl = this.getMarketBaseUrl();
+      const url = `${baseUrl}/v5/market/tickers?category=spot`;
 
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Bybit Ticker API error: ${response.status}`);
-    }
-
-    const body = (await response.json()) as any;
-    if (body.retCode !== 0) {
-      throw new Error(`Bybit Ticker API returned code: ${body.retCode}, msg: ${body.retMsg}`);
-    }
-
-    const rawList = body.result?.list || [];
-    const tickers: MarketTicker[] = [];
-    let rank = 1;
-
-    for (const key of Object.keys(SUPPORTED_COINS)) {
-      const coinMeta = SUPPORTED_COINS[key]!;
-      
-      if (key === 'USDT') {
-        // USDT price is always 1.0
-        tickers.push({
-          rank: rank++,
-          name: 'Tether',
-          symbol: 'USDT',
-          price: 1.0,
-          change24h: 0.0,
-          change7d: 0.0,
-          volume24h: 1000000000,
-          marketCap: 100000000000,
-          high24h: 1.0,
-          low24h: 1.0,
-          color: coinMeta.color,
-          iconLetter: coinMeta.iconLetter,
-        });
-        continue;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Bybit Ticker API error: ${response.status}`);
       }
 
-      // Map each coin to its Bybit symbol (e.g., USDC→USDCUSDT, POL→POLUSDT, others→KEYUSDT)
-      const bybitSymbol = coinMeta.bybitSymbol ?? `${key}USDT`;
-      const rawTicker = rawList.find((item: any) => item.symbol === bybitSymbol);
+      const body = (await response.json()) as any;
+      if (body.retCode !== 0) {
+        throw new Error(`Bybit Ticker API returned code: ${body.retCode}, msg: ${body.retMsg}`);
+      }
 
-      const price = rawTicker ? parseFloat(rawTicker.lastPrice || '0') : 0;
-      const change24h = rawTicker ? parseFloat(rawTicker.price24hPcnt || '0') * 100 : 0;
-      const volume24h = rawTicker ? parseFloat(rawTicker.turnover24h || '0') : 0;
+      const rawList = body.result?.list || [];
+      const tickers: MarketTicker[] = [];
+      let rank = 1;
 
-      // Pseudo market cap calculation
-      const mockCirculatingSupplies: Record<string, number> = {
-        BTC: 19600000,
-        ETH: 120000000,
-        BNB: 150000000,
-        SOL: 440000000,
-        USDC: 28000000000,
-        XRP: 55000000000,
-        ADA: 35000000000,
-        DOGE: 140000000000,
-        POL: 9900000000,
-        AVAX: 367000000,
-        LINK: 587000000,
-      };
-      
-      const supply = mockCirculatingSupplies[key] || 100000000;
-      const marketCap = price * supply;
+      for (const key of Object.keys(SUPPORTED_COINS)) {
+        const coinMeta = SUPPORTED_COINS[key]!;
 
-      tickers.push({
-        rank: rank++,
-        name: coinMeta.name,
-        symbol: key,
-        price,
-        change24h,
-        change7d: change24h * 1.2,
-        volume24h,
-        marketCap,
-        high24h: rawTicker ? parseFloat(rawTicker.highPrice24h || '0') : price,
-        low24h: rawTicker ? parseFloat(rawTicker.lowPrice24h || '0') : price,
-        color: coinMeta.color,
-        iconLetter: coinMeta.iconLetter,
+        if (key === 'USDT') {
+          tickers.push({
+            rank: rank++, name: 'Tether', symbol: 'USDT',
+            price: 1.0, change24h: 0.0, change7d: 0.0,
+            volume24h: 1000000000, marketCap: 100000000000,
+            high24h: 1.0, low24h: 1.0,
+            color: coinMeta.color, iconLetter: coinMeta.iconLetter,
+          });
+          continue;
+        }
+
+        const bybitSymbol = coinMeta.bybitSymbol ?? `${key}USDT`;
+        const rawTicker = rawList.find((item: any) => item.symbol === bybitSymbol);
+        const price = rawTicker ? parseFloat(rawTicker.lastPrice || '0') : 0;
+        const change24h = rawTicker ? parseFloat(rawTicker.price24hPcnt || '0') * 100 : 0;
+        const volume24h = rawTicker ? parseFloat(rawTicker.turnover24h || '0') : 0;
+
+        const mockCirculatingSupplies: Record<string, number> = {
+          BTC: 19600000, ETH: 120000000, BNB: 150000000, SOL: 440000000,
+          USDC: 28000000000, XRP: 55000000000, ADA: 35000000000,
+          DOGE: 140000000000, POL: 9900000000, AVAX: 367000000, LINK: 587000000,
+        };
+        const supply = mockCirculatingSupplies[key] || 100000000;
+
+        tickers.push({
+          rank: rank++, name: coinMeta.name, symbol: key,
+          price, change24h, change7d: change24h * 1.2, volume24h,
+          marketCap: price * supply,
+          high24h: rawTicker ? parseFloat(rawTicker.highPrice24h || '0') : price,
+          low24h: rawTicker ? parseFloat(rawTicker.lowPrice24h || '0') : price,
+          color: coinMeta.color, iconLetter: coinMeta.iconLetter,
+        });
+      }
+
+      setCache(cacheKey, tickers);
+      return tickers;
+    } catch (err) {
+      console.error('[MarketService] getAllTickers failed:', err);
+      // Return stale cache if available, else build zeroed list so app doesn't crash
+      const stale = cache.get(cacheKey);
+      if (stale) return stale.data as MarketTicker[];
+      return Object.keys(SUPPORTED_COINS).map((key, i) => {
+        const m = SUPPORTED_COINS[key]!;
+        return {
+          rank: i + 1, name: m.name, symbol: key,
+          price: key === 'USDT' ? 1 : 0, change24h: 0, change7d: 0,
+          volume24h: 0, marketCap: 0, high24h: 0, low24h: 0,
+          color: m.color, iconLetter: m.iconLetter,
+        };
       });
     }
-
-    setCache(cacheKey, tickers);
-    return tickers;
   }
 
   /**
